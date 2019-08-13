@@ -51,9 +51,9 @@ func updateSharedLibLine(line string, parseResult *sharedLibResult) string {
 	if len(parseResult.libs) > 0 {
 		newLibsVal += parseResult.libs + ","
 	}
-	newLibsVal += "'"
+	newLibsVal += extName +  "'"
 	replaceVal := "= '" + parseResult.libs + "'"
-	res = strings.Replace(res, replaceVal, newLibsVal, 1)
-
+//	res = strings.Replace(res, replaceVal, newLibsVal, 1)
+	res = replaceVal
 	return res
 }
