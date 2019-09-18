@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/timescale/timescaledb-tune/pkg/tstune"
+	"github.com/timescale/timescaledb-tune/pkg/ostune"
 )
 
 const (
@@ -26,6 +27,7 @@ const (
 var (
 	f           tstune.TunerFlags
 	showVersion bool
+    OSTune   bool
 )
 
 // Parse args
@@ -44,11 +46,16 @@ func init() {
 	flag.BoolVar(&f.Restore, "restore", false, "Whether to restore a previously made conf file backup")
 
 	flag.BoolVar(&showVersion, "version", false, "Show the version of this tool")
+	flag.BoolVar(&OSTune, "ostune", false, "work for operation system tune,generally is sysctl.conf and limit.conf,just run under root privilleage")
 	flag.Parse()
 }
 
 func main() {
-	if showVersion {
+    if OSTune{
+        tuner := ostune.Tuner{}
+        tuner.Run()
+        fmt.Println("process os conf done,byebye")
+    }else if showVersion {
 		fmt.Printf("%s %s (%s %s)\n", binName, version, runtime.GOOS, runtime.GOARCH)
 	} else {
 		tuner := tstune.Tuner{}

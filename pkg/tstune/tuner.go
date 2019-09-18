@@ -51,7 +51,7 @@ const (
 	successSharedLibCorrect        = "shared_preload_libraries is set correctly"
 	successSharedLibUpdated        = "shared_preload_libraries will be updated"
 	statementSharedLibNotFound     = "Unable to find shared_preload_libraries in configuration file"
-	plainSharedLibLine             = "shared_preload_libraries = 'timescaledb'"
+	plainSharedLibLine             = "shared_preload_libraries = 'pg_pathman,pglogical'"
 	plainSharedLibLineWithComments = plainSharedLibLine + "	# (change requires restart)"
 
 	statementTunableIntro = "Recommendations based on %s of available memory and %d CPUs for PostgreSQL %s"
@@ -220,7 +220,9 @@ func verifyTunerFlags(flags *TunerFlags) (*TunerFlags, error) {
 // on the in io.Reader. Informational messages are written to outErr while
 // actual recommendations are written to out.
 func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Writer) {
-	t.flags, _ = verifyTunerFlags(flags)
+	//复制一份系统变量和参数
+    t.flags, _ = verifyTunerFlags(flags)
+    //初始化IO处理描述符
 	t.initializeIOHandler(in, out, outErr)
 
 	ifErrHandle := func(err error) {
@@ -228,11 +230,11 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 			t.handler.errorExit(err)
 		}
 	}
-
+    //初始化系统变量参数，校验
 	// Before proceeding, make sure we have a valid system config
 	config, err := t.initializeSystemConfig()
 	ifErrHandle(err)
-
+    //尝试打开postgresql.conf配置文件
 	// Attempt to find the config file and open it for reading
 	filePath := t.flags.ConfPath
 	if len(filePath) == 0 {
@@ -244,12 +246,13 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 	if err != nil {
 		t.handler.errorExit(fmt.Errorf("could not open config file for reading: %v", err))
 	}
+    //在此方法结束前关闭打开的文件
 	defer file.Close()
-
+    //验证filePath是不是有效路径
 	// Do user verification of the found conf file (if not provided via a flag)
 	err = t.processConfFileCheck(filePath)
 	ifErrHandle(err)
-
+    //是否进行恢复处理
 	// If restore flag, restore and that's it
 	if t.flags.Restore {
 		r := &fsRestorer{}
@@ -257,11 +260,11 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		ifErrHandle(err)
 		return // do nothing else!
 	}
-
+    //从postgresql.conf文件里获取变量当前值
 	// Generate current conf file state
 	t.cfs, err = getConfigFileState(file)
 	ifErrHandle(err)
-
+    //是否将脏写落盘
 	// Write backup
 	if !t.flags.DryRun {
 		backupPath, err := backup(t.cfs)
@@ -269,30 +272,32 @@ func (t *Tuner) Run(flags *TunerFlags, in io.Reader, out io.Writer, outErr io.Wr
 		fmt.Fprintf(t.handler.outErr, backupPath+"\n\n")
 		ifErrHandle(err)
 	}
-
+    //是否进行静默处理
 	// Process the tuning of settings
 	if t.flags.Quiet {
 		err = t.processQuiet(config)
 		ifErrHandle(err)
 	} else {
-		err = t.processSharedLibLine()
+        err = t.processSharedLibLine()
 		ifErrHandle(err)
 
 		fmt.Fprintf(t.handler.outErr, "\n")
+        //进入交互界面,获取交互界面的结果
 		err = t.promptUntilValidInput(promptTune+promptYesNo, newYesNoChecker(""))
 		if err == nil {
+            //根据交互结果进行其他变量的处理
 			err = t.processTunables(config)
 			ifErrHandle(err)
 		} else if err.Error() != "" { // error msg of "" is response when user selects no to tuning
 			t.handler.errorExit(err)
 		}
 	}
-
+    //添加timescaledb特有参数
 	// Add our params to the conf file, and cleanup because old versions of Tuner
 	// were noisy and left these params each time.
-	t.processOurParams()
-	t.cfs.ProcessLines(getRemoveDuplicatesProcessors(ourParams)...)
-
+//	t.processOurParams()
+//	t.cfs.ProcessLines(getRemoveDuplicatesProcessors(ourParams)...)
+    //脏写未落盘的情况下不写回配置文件，仅仅提示运行成功。
 	// Wrap up: Either write it out, or show success in --dry-run
 	if !t.flags.DryRun {
 		err = t.writeConfFile(filePath)
@@ -360,7 +365,7 @@ func (t *Tuner) processNoSharedLibLine() error {
 	}
 
 	t.cfs.lines = append(t.cfs.lines, &configLine{content: plainSharedLibLine})
-	t.handler.p.Success("appending shared_preload_libraries = 'timescaledb' to end of configuration file")
+	t.handler.p.Success("appending shared_preload_libraries = 'pg_pathman,pglogical' to end of configuration file")
 
 	return nil
 }
@@ -384,7 +389,7 @@ func (t *Tuner) processSharedLibLine() error {
 		currWithoutComments := fmt.Sprintf("%sshared_preload_libraries = '%s'", res.commentGroup, res.libs)
 		fmt.Fprintf(t.handler.out, currWithoutComments+"\n")
 
-		t.handler.p.Statement(recommendLabel)
+        t.handler.p.Statement(recommendLabel)
 		// want to print without trailing comments to reduce clutter
 		recWithoutComments := updateSharedLibLine(currWithoutComments, res)
 		fmt.Fprintf(t.handler.out, recWithoutComments+"\n")

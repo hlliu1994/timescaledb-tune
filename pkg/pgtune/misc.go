@@ -18,6 +18,7 @@ const (
 	AutovacuumMaxWorkersKey = "autovacuum_max_workers"
 	AutovacuumNaptimeKey    = "autovacuum_naptime"
 	EffectiveIOKey          = "effective_io_concurrency" // linux only
+    ListenAddrKey           = "listen_addresses" //default listen everywhere
 
 	checkpointDefault           = "0.9"
 	statsTargetDefault          = "500"
@@ -29,6 +30,8 @@ const (
 
 // MaxConnectionsDefault is the recommended default value for max_connections.
 const MaxConnectionsDefault uint64 = 100
+// default listen address is *
+const ListenAddrDefault string = "'*'"
 
 // maxLocksValues gives the number of locks for a power-2 memory starting
 // with sub-8GB. i.e.:
@@ -50,7 +53,8 @@ var MiscKeys = []string{
 	MaxLocksPerTxKey,
 	AutovacuumMaxWorkersKey,
 	AutovacuumNaptimeKey,
-	EffectiveIOKey,
+    ListenAddrKey,
+	EffectiveIOKey,//always should be last,because it is on used for linux 
 }
 
 // MiscRecommender gives recommendations for MiscKeys based on system resources.
@@ -99,7 +103,9 @@ func (r *MiscRecommender) Recommend(key string) string {
 		val = autovacuumNaptimeDefault
 	} else if key == EffectiveIOKey {
 		val = effectiveIODefault
-	} else {
+	} else if key == ListenAddrKey  {
+        val = ListenAddrDefault
+    } else {
 		panic(fmt.Sprintf("unknown key: %s", key))
 	}
 	return val
